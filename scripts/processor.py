@@ -12,6 +12,8 @@ from os.path import exists
 from subprocess import check_output
 
 import re
+import sys
+import time
 
 # Check if configuration file exists and fetch values from it
 if(exists('analysisConfig.json')):
@@ -42,7 +44,7 @@ if(is_truffle_project):
     result = check_output(['myth', '--truffle']).decode("utf-8") 
     log.write(result)
     log.write("\nProcessing of Truffle Project Completed")
-    if(re.search('Error', result, re.IGNORECASE)):
+    if(re.search('Type: Error', result, re.IGNORECASE)):
       log.write("\nFound Error in Solidity Code. Failing Build")
       exit(1)
 
@@ -52,10 +54,16 @@ files = glob(getcwd() + '/**/*.sol', recursive=True)
 # Process each file individually and check for errors / warnings as set
 for file in files:
     log.write("Processing file " + file + "\n")
-    result = check_output(['myth', '-x', file]).decode("utf-8") 
+    for i in range(1, 10):
+        try:  # workaround unstable z3 theorem solver
+            result = check_output(['myth', '-x', file]).decode("utf-8")
+            break
+        except Exception as e:
+            time.sleep(3)
+            sys.stderr.write(".")
     log.write(result)
     log.write("\nProcessing of file " + file + " Completed\n\n")
-    if(re.search('Error', result, re.IGNORECASE) or (fail_on_warning and re.search('Warning', result, re.IGNORECASE))):
+    if(re.search('Type: Error', result, re.IGNORECASE) or (fail_on_warning and re.search('Warning', result, re.IGNORECASE))):
         if(fail_on_first_error):
             log.write("\n-----Failing Build Since Fail on first error is enabled----\n")
             log.close()
